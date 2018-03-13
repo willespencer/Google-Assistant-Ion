@@ -7,6 +7,8 @@ const functions = require('firebase-functions');
 const simpleoauth2 = require('simple-oauth2');
 const request = require('request');
 const fs = require('fs');
+var headers;
+var body;
 admin.initializeApp(functions.config().firebase);
 
 let DialogflowApp = require('actions-on-google').DialogflowApp;
@@ -18,6 +20,20 @@ const SCHEDULE_INTENT = 'input.schedule';
 const PICTURE_INTENT = 'input.picture';
 const FIND_INTENT = 'input.find';
 const FIND2_INTENT = 'input.find2';
+
+//makes a string from a list of possible options to display
+function makeString(arr)
+{
+  var str = "";
+  for(var x = 0; x < arr.length - 1; x++)
+  {
+    str += arr[x] + ", ";
+  }
+  str += arr[arr.length - 1];
+
+  return str;
+}
+
 
 // Create functions to handle requests here
 function welcomeIntent (app) {
@@ -54,46 +70,73 @@ function findIntent(app){
   // Define to JSON type
   var json = JSON.parse(contents);
 
-  var categories = [] //list of all categories (to avoid hardcoding)
+  var contents2 = fs.readFileSync("categories.json");
+  var json2 = JSON.parse(contents2);
+
+  var categories = []; //list of all categories (to avoid hardcoding)
 
   for (var key in json) { //loops through all eighth period ids
     if (json.hasOwnProperty(key)) { //makes sure it is an actual key
       var prop = json[key];
+      var category;
 
-      if(!obj.hasOwnProperty(prop)) //checks if created object does not have this classification
+      for (var key2 in json2) {
+        if (json2.hasOwnProperty(key2)) {
+          var jsonArray = json2[key2]; //array of lower categories
+          for(var i = 0; i < jsonArray.length; i++) //loops through categories in array
+            if(jsonArray[i] == prop) //if found the correct property
+            {
+              category = key2; //saves the parent category (key2)
+            }
+        }
+      }
+
+      if(!obj.hasOwnProperty(category)) //checks if created object does not have this classification
       {
         var array = [key];//creates new array
-        obj[prop] = array;
-        categories.push(prop);
+        obj[category] = array;
+        categories.push(category);
       }
       else
       {
-        obj[prop].push(key); //adds number to prop array
+        obj[category].push(key); //adds number to prop array
       }
     }
   }
 
-  console.log(obj);
-
-  var categoryString = "";
-  for(var x = 0; x < categories.length - 1; x++)
-  {
-    categoryString += categories[x] + ", ";
-  }
-  categoryString += categories[categories.length - 1];
-
+  var categoryString = makeString(categories); //returns string made from array
 
   app.ask(app.buildRichResponse()
     .addSimpleResponse({speech: 'What Category of 8th period would you like? ' + categoryString,
-      displayText: 'What Category of 8th period would you like'})
+      displayText: 'What Category of 8th period would you like?'})
     .addSuggestions(categories) //suggestions at bottom of categories
-    .addSuggestionLink('Suggestion Link', 'https://assistant.google.com/')
   );
 }
 
 function find2Intent(app)
 {
-  req.body.result.parameters['date'];
+  var type = body.result.parameters['type'];
+
+  var contents = fs.readFileSync("categories.json");
+  var json = JSON.parse(contents);
+
+  var jsonArray;
+
+  for (var key in json) { //loops through all eighth period ids
+    if (json.hasOwnProperty(key)) { //makes sure it is an actual key
+      if (type == key){
+        jsonArray = json[key]; //returns array for found type
+      }
+    }
+  }
+
+  var categoryString = makeString(jsonArray); //returns string made from array
+
+  app.ask(app.buildRichResponse()
+    .addSimpleResponse({speech: 'What Sub-Category of 8th period would you like? ' + categoryString,
+      displayText: 'What Sub-Category of 8th period would you like?'})
+    .addSuggestions(jsonArray) //suggestions at bottom of categories
+  );
 }
 
 function pictureIntent(app)
@@ -223,7 +266,9 @@ actionMap.set(FIND2_INTENT, find2Intent);
 const factsAboutGoogle = functions.https.onRequest((request, response) => {
   const app = new DialogflowApp({ request, response });
   console.log(`Request headers: ${JSON.stringify(request.headers)}`);
+  headers = request.headers;
   console.log(`Request body: ${JSON.stringify(request.body)}`);
+  body = request.body;
 
 
   app.handleRequest(actionMap);

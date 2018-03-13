@@ -1,0 +1,49 @@
+{
+  "Academic":
+  [
+    "Academic",
+    "Competition",
+    "Science",
+    "Writing",
+    "Business"
+  ],
+  "Study Hall/Makeup":
+  [
+    "Study",
+    "Makeup",
+    "Help",
+    "Tutoring",
+    "Lab"
+  ],
+  "Sports":
+  [
+    "Sport"
+  ],
+  "Technology":
+  [
+    "Tech"
+  ],
+  "Arts":
+  [
+    "Art",
+    "Music",
+    "Dance",
+    "Drama"
+  ],
+  "Service":
+  [
+    "Service"
+  ],
+  "Language and Culture":
+  [
+    "Language",
+    "Culture"
+  ],
+  "Other":
+  [
+    "STW",
+    "Religion",
+    "Politics",
+    "Other"
+  ]
+}
