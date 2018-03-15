@@ -20,20 +20,41 @@ const SCHEDULE_INTENT = 'input.schedule';
 const PICTURE_INTENT = 'input.picture';
 const FIND_INTENT = 'input.find';
 const FIND2_INTENT = 'input.find2';
+const FIND3_INTENT = 'input.find3';
+const FIND4_INTENT = 'input.find4';
 
 //makes a string from a list of possible options to display
 function makeString(arr)
 {
   var str = "";
-  for(var x = 0; x < arr.length - 1; x++)
+
+  if(length(arr) > 2)
   {
-    str += arr[x] + ", ";
+    for(var x = 0; x < arr.length - 1; x++)
+    {
+      str += arr[x] + ", ";
+    }
+    str += 'or ' + arr[arr.length - 1];
   }
-  str += arr[arr.length - 1];
+
+  else if(length(arr) > 1)
+    str = arr[0] ' or '+ arr[1];
+  else
+    str = arr[0];
 
   return str;
 }
+ //outputs rich response with options based on given array with question output
+function outputFromArray(arr, output)
+{
+  str = makeString(arr); //makes displayable string from array
 
+  app.ask(app.buildRichResponse()
+    .addSimpleResponse({speech: output + ' ' + str,
+      displayText: output})
+    .addSuggestions(arr) //suggestions at bottom of categories
+  );
+}
 
 // Create functions to handle requests here
 function welcomeIntent (app) {
@@ -104,18 +125,14 @@ function findIntent(app){
     }
   }
 
-  var categoryString = makeString(categories); //returns string made from array
-
-  app.ask(app.buildRichResponse()
-    .addSimpleResponse({speech: 'What Category of 8th period would you like? ' + categoryString,
-      displayText: 'What Category of 8th period would you like?'})
-    .addSuggestions(categories) //suggestions at bottom of categories
-  );
+  var output = 'What Category of 8th period would you like?'
+  outputFromArray(categories, output)
 }
 
 function find2Intent(app)
 {
   var type = body.result.parameters['type'];
+  console.log(type);
 
   var contents = fs.readFileSync("categories.json");
   var json = JSON.parse(contents);
@@ -130,14 +147,39 @@ function find2Intent(app)
     }
   }
 
-  var categoryString = makeString(jsonArray); //returns string made from array
-
-  app.ask(app.buildRichResponse()
-    .addSimpleResponse({speech: 'What Sub-Category of 8th period would you like? ' + categoryString,
-      displayText: 'What Sub-Category of 8th period would you like?'})
-    .addSuggestions(jsonArray) //suggestions at bottom of categories
-  );
+  if(length(jsonArray) > 1) //if more than one subcategory;
+  {
+    var output = 'What Sub-Category of 8th period would you like?'
+    outputFromArray(jsonArray, output)
+  }
+  else { //only one subcategory
+    app.ask("There are no subcategories, so the next question will be asked. Is this okay?");
+  }
 }
+
+function find3Intent(app)
+{
+  var type = body.result.parameters['subcategory']; //NEED TO SAVE THIS
+  var array = ["Wednesday", "Friday"];
+  var question = "Great! What day do you want this club to meet?";
+  outputFromArray(array, question);
+}
+
+function find4Intent(app)
+{
+  var day = body.result.parameters['sys.date']; //NEED TO SAVE THIS
+  var array = ["A Block", "B Block"];
+  var question = "Great! What block do you want this club to meet?";
+  outputFromArray(array, question);
+}
+
+/*function find5Intent(app)
+{
+  var day = body.result.parameters['block']; //NEED TO SAVE THIS
+  var array = ["A Block", "B Block"];
+  var question = "Great! What block do you want this club to meet?";
+  outputFromArray(array, question);
+}/*
 
 function pictureIntent(app)
 {
@@ -242,13 +284,6 @@ function testIntent(app)
     console.log(e);
     console.log(body);
     app.tell(body);
-      // var res_object = JSON.parse(body);
-      //
-      // // from this javascript object, extract the user's name
-      // user_name = res_object['short_name'];
-      //
-      // app.ask(user_name);
-
   });
 }
 
@@ -261,6 +296,8 @@ actionMap.set(SCHEDULE_INTENT, scheduleIntent);
 actionMap.set(PICTURE_INTENT, pictureIntent);
 actionMap.set(FIND_INTENT, findIntent);
 actionMap.set(FIND2_INTENT, find2Intent);
+actionMap.set(FIND3_INTENT, find3Intent);
+actionMap.set(FIND4_INTENT, find4Intent);
 
 
 const factsAboutGoogle = functions.https.onRequest((request, response) => {
