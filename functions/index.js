@@ -7,11 +7,11 @@ const functions = require('firebase-functions');
 const simpleoauth2 = require('simple-oauth2');
 const request = require('request');
 const fs = require('fs');
+let DialogflowApp = require('actions-on-google').DialogflowApp;
+
 var headers;
 var body;
 admin.initializeApp(functions.config().firebase);
-
-let DialogflowApp = require('actions-on-google').DialogflowApp;
 
 const WELCOME_INTENT = 'input.welcome';  // the action name from the API.AI intent
 const TEST_INTENT = 'input.test';
@@ -22,13 +22,21 @@ const FIND_INTENT = 'input.find';
 const FIND2_INTENT = 'input.find2';
 const FIND3_INTENT = 'input.find3';
 const FIND4_INTENT = 'input.find4';
+const FIND5_INTENT = 'input.find5';
+
+var weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+//variables that will be instantiated when user inputs their data
+var type;
+var weekDate;
+var block;
 
 //makes a string from a list of possible options to display
 function makeString(arr)
 {
   var str = "";
 
-  if(length(arr) > 2)
+  if(arr.length > 2)
   {
     for(var x = 0; x < arr.length - 1; x++)
     {
@@ -37,17 +45,17 @@ function makeString(arr)
     str += 'or ' + arr[arr.length - 1];
   }
 
-  else if(length(arr) > 1)
-    str = arr[0] ' or '+ arr[1];
+  else if(arr.length == 2)
+    str = arr[0] + ' or ' + arr[1];
   else
     str = arr[0];
 
   return str;
 }
  //outputs rich response with options based on given array with question output
-function outputFromArray(arr, output)
+function outputFromArray(arr, output, app)
 {
-  str = makeString(arr); //makes displayable string from array
+  var str = makeString(arr); //makes displayable string from array
 
   app.ask(app.buildRichResponse()
     .addSimpleResponse({speech: output + ' ' + str,
@@ -126,7 +134,7 @@ function findIntent(app){
   }
 
   var output = 'What Category of 8th period would you like?'
-  outputFromArray(categories, output)
+  outputFromArray(categories, output, app)
 }
 
 function find2Intent(app)
@@ -147,10 +155,10 @@ function find2Intent(app)
     }
   }
 
-  if(length(jsonArray) > 1) //if more than one subcategory;
+  if(jsonArray.length > 1) //if more than one subcategory;
   {
     var output = 'What Sub-Category of 8th period would you like?'
-    outputFromArray(jsonArray, output)
+    outputFromArray(jsonArray, output, app)
   }
   else { //only one subcategory
     app.ask("There are no subcategories, so the next question will be asked. Is this okay?");
@@ -159,27 +167,84 @@ function find2Intent(app)
 
 function find3Intent(app)
 {
-  var type = body.result.parameters['subcategory']; //NEED TO SAVE THIS
+  type = body.result.parameters['subcategory'];
   var array = ["Wednesday", "Friday"];
   var question = "Great! What day do you want this club to meet?";
-  outputFromArray(array, question);
+  outputFromArray(array, question, app);
 }
 
 function find4Intent(app)
 {
-  var day = body.result.parameters['sys.date']; //NEED TO SAVE THIS
+  weekDate = body.result.parameters['inputDate'];
   var array = ["A Block", "B Block"];
   var question = "Great! What block do you want this club to meet?";
-  outputFromArray(array, question);
+  outputFromArray(array, question, app);
 }
 
-/*function find5Intent(app)
+function find5Intent(app)
 {
-  var day = body.result.parameters['block']; //NEED TO SAVE THIS
-  var array = ["A Block", "B Block"];
-  var question = "Great! What block do you want this club to meet?";
-  outputFromArray(array, question);
-}/*
+  block = body.result.parameters['block'];
+  //console.log("Block: " + block + " Day: " + weekDate + " Type: " + type);
+  var dateNum = weekdays.indexOf(weekDate.toLowerCase());
+
+  var contents = fs.readFileSync("classification.json");
+  var json = JSON.parse(contents);
+  //var lastKey = Object.keys(json)[Object.keys(json).length-1];
+  var indexCount = 0; //count of indeces that fit main category
+  for (var key in json) { //loops through all eighth period ids
+    if (json.hasOwnProperty(key)) { //makes sure it is an actual key
+      if(json[key] == type) //if right subcategory
+      {
+        indexCount++;
+      }
+    }
+  }
+  console.log("indexCount: " + indexCount);
+
+  const access_token = app.getUser().accessToken;
+
+  var numberList = []; //list of ids that fit criteria
+  var nameList = []; //names for corresponding ids
+  var count = 0; //increases when reaches a category that fits
+  var keyList = []; //list of keys that fit category
+
+  for (var key in json) { //loops through all eighth period ids
+    if (json.hasOwnProperty(key)) { //makes sure it is an actual key
+      if(json[key] == type) //if right subcategory
+      {
+        keyList.push(key);
+        var my_ion_request = 'https://ion.tjhsst.edu/api/activities/' + key + '?format=json&access_token='+access_token;
+        request.get( {url:my_ion_request}, function (e, r, body) {
+          var reqKey = keyList[count];
+          count++;
+
+          var res_object = JSON.parse(body);
+          var schedule = res_object.scheduled_on;
+          for (var oneBlock in schedule) //grabs a block from the JSON
+          {
+            if (schedule.hasOwnProperty(oneBlock)) {
+              var singleDate = new Date(schedule[oneBlock].date);
+              if(schedule[oneBlock].block_letter.toLowerCase() == block.toLowerCase() && singleDate.getDay().toString() == dateNum.toString()) //block and weekday match
+              {
+                numberList.push(reqKey); //adds number to list if passes criteria
+                nameList.push(res_object.name);
+                break; //break out of inner loop
+              }
+            }
+          }
+          if(count == indexCount) //if this is the last request needed to be made
+          {
+            var output = makeString(nameList);
+            app.tell("Potential Eighth Periods are: " + output);
+          }
+        });
+        if(count == indexCount) //if this is the last request needed to be made
+          break;
+      }
+    }
+  }
+
+}
 
 function pictureIntent(app)
 {
@@ -298,6 +363,7 @@ actionMap.set(FIND_INTENT, findIntent);
 actionMap.set(FIND2_INTENT, find2Intent);
 actionMap.set(FIND3_INTENT, find3Intent);
 actionMap.set(FIND4_INTENT, find4Intent);
+actionMap.set(FIND5_INTENT, find5Intent);
 
 
 const factsAboutGoogle = functions.https.onRequest((request, response) => {
