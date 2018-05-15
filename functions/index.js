@@ -313,6 +313,12 @@ function goingIntent(app){
 
 }
 
+function unBreak(str) //removes <br>'s from string
+{
+  var splitStr = str.split("<br>");
+  return splitStr.join(' ');
+}
+
 function scheduleIntent(app)
 {
   var my_ion_request = 'https://ion.tjhsst.edu/api/schedule?format=json'; //no access token for schedule
@@ -320,10 +326,13 @@ function scheduleIntent(app)
   request.get( {url:my_ion_request}, function (e, r, body) {
     var res_object = JSON.parse(body);
     var day = res_object.results[0].day_type;
-    var output = "<speak>" + "Today is a " + day.name + "<break strength='medium'/>\n";
+    //var output = "<speak>" + "Today is a " + unBreaked + "<break strength='medium'/>\n";
+    var unBreaked = unBreak(day.name);
+    var output = "<speak><p>Today is a " + unBreaked + "."
     if(day.blocks.length > 0)
     {
-      output += "Today's schedule is... <break strength='weak'/>\n"
+      //output += "Today's schedule is... <break strength='weak'/>\n"
+      output += "<s>Today's schedule is...</s>"
       for(var x = 0; x < day.blocks.length; x++)
       {
         var start = day.blocks[x].start;
@@ -332,11 +341,14 @@ function scheduleIntent(app)
         var end = day.blocks[x].end;
         if(Number(end.substr(0, end.indexOf(':'))) > 12) //changes from 24 hour time to 12 hour time
           end = (Number(end.substr(0, end.indexOf(':'))) - 12) + end.substr(end.indexOf(':'));
-        output += day.blocks[x].name + ", " + start + "-" + end + " <break strength='weak'/>\n";
+        //output += day.blocks[x].name + ", " + start + "-" + end + " <break strength='weak'/>\n";
+        output += "<s>" + day.blocks[x].name + ", " + start + "-" + end + ".</s>"
       }
     }
+    output += "</p>"
     output += "</speak>";
     app.tell(output);
+    //app.tell(output);
   });
 }
 
