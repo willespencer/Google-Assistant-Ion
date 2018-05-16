@@ -12,18 +12,9 @@ let DialogflowApp = require('actions-on-google').DialogflowApp;
 var headers;
 var body;
 
-
-/*var serviceAccount = require("path/to/serviceAccountKey.json");
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://research-project-fadba.firebaseio.com"
-});*/
-
 admin.initializeApp(functions.config().firebase);
 
 const WELCOME_INTENT = 'input.welcome';  // the action name from the API.AI intent
-const TEST_INTENT = 'input.test';
 const GOING_INTENT = 'input.going';
 const SCHEDULE_INTENT = 'input.schedule';
 const PICTURE_INTENT = 'input.picture';
@@ -32,6 +23,7 @@ const FIND2_INTENT = 'input.find2';
 const FIND3_INTENT = 'input.find3';
 const FIND4_INTENT = 'input.find4';
 const FIND5_INTENT = 'input.find5';
+const CURRENT_INTENT = 'input.current';
 
 var weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -39,6 +31,13 @@ var weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday"
 var type;
 var weekDate;
 var block;
+
+//removes <br>'s from string
+function unBreak(str)
+{
+  var splitStr = str.split("<br>");
+  return splitStr.join(' ');
+}
 
 //makes a string from a list of possible options to display
 function makeString(arr)
@@ -61,7 +60,8 @@ function makeString(arr)
 
   return str;
 }
- //outputs rich response with options based on given array with question output
+
+//outputs rich response with options based on given array with question output
 function outputFromArray(arr, output, app)
 {
   var str = makeString(arr); //makes displayable string from array
@@ -98,10 +98,10 @@ function welcomeIntent (app) {
 
 }
 
+//Asks user to select a category for an eighth period (from categories.json)
 function findIntent(app){
 
   var obj = new Object();
-  //var jsonString= JSON.stringify(obj);
 
   // Get content from file
   var contents = fs.readFileSync("classification.json");
@@ -146,6 +146,7 @@ function findIntent(app){
   outputFromArray(categories, output, app)
 }
 
+//Saves main category, asks for subcategory (if exists)
 function find2Intent(app)
 {
   var type = body.result.parameters['type'];
@@ -174,6 +175,7 @@ function find2Intent(app)
   }
 }
 
+//Saves user's subcategory, asks for weekdate
 function find3Intent(app)
 {
   type = body.result.parameters['subcategory'];
@@ -182,6 +184,7 @@ function find3Intent(app)
   outputFromArray(array, question, app);
 }
 
+//Saves user's inputed weekdate, asks for block
 function find4Intent(app)
 {
   weekDate = body.result.parameters['inputDate'];
@@ -190,6 +193,7 @@ function find4Intent(app)
   outputFromArray(array, question, app);
 }
 
+//Uses data from previous intents to display potential eighth periods
 function find5Intent(app)
 {
   block = body.result.parameters['block'];
@@ -208,7 +212,6 @@ function find5Intent(app)
       }
     }
   }
-  console.log("indexCount: " + indexCount);
 
   const access_token = app.getUser().accessToken;
 
@@ -255,6 +258,7 @@ function find5Intent(app)
 
 }
 
+//Intent to return user's picture (sample of a rich response)
 function pictureIntent(app)
 {
   const access_token = app.getUser().accessToken;
@@ -274,6 +278,7 @@ function pictureIntent(app)
   });
 }
 
+//Intent to tell user what their next eighth periods are
 function goingIntent(app){
   const access_token = app.getUser().accessToken;
 
@@ -282,7 +287,7 @@ function goingIntent(app){
   request.get( {url:my_ion_request}, function (e, r, body) {
     var date = new Date();
     var year = Number(date.getFullYear().toString());
-    var month = Number((date.getMonth() + 1).toString()); //returns 0-11
+    var month = Number((date.getMonth() + 1).toString()); //returns 0-11  + 1
     var day = Number(date.getDate().toString());
 
     var res_object = JSON.parse(body);
@@ -322,12 +327,7 @@ function goingIntent(app){
 
 }
 
-function unBreak(str) //removes <br>'s from string
-{
-  var splitStr = str.split("<br>");
-  return splitStr.join(' ');
-}
-
+//intent to display current schedule to user.
 function scheduleIntent(app)
 {
   var my_ion_request = 'https://ion.tjhsst.edu/api/schedule?format=json'; //no access token for schedule
@@ -361,22 +361,53 @@ function scheduleIntent(app)
   });
 }
 
-function testIntent(app)
-{
-  const access_token = app.getUser().accessToken;
+//Intent to tell user if school is in session, and if so, tell them what class/passing period it is.
+function currentIntent(app){
+  var my_ion_request = 'https://ion.tjhsst.edu/api/schedule?format=json'; //no access token for schedule
+  var failedMessage = 'Sorry, but school is not in session right now. Try again later!';
 
-  var my_ion_request = 'https://ion.tjhsst.edu/api/profile?format=json&access_token='+access_token;
   request.get( {url:my_ion_request}, function (e, r, body) {
-    console.log(e);
-    console.log(body);
-    app.tell(body);
+    var res_object = JSON.parse(body);
+
+    var date = new Date();
+    var year = Number(date.getFullYear().toString());
+    var month = Number((date.getMonth() + 1).toString()); //returns 0-11  + 1
+    var day = Number(date.getDate().toString());
+    var hours = Number(date.getHours().toString());
+    var mins = Number(date.getHours().toString());
+
+    var schedDate = res_object.results[0].date;
+    var schedYear = Number(schedDate.slice(0, 4));
+    var schedMonth =  Number(schedDate.slice(5, 7));
+    var schedDay = Number(schedDate.slice(8, 10));
+
+    if(year == schedYear && month == schedMonth && day == schedDay) //if current day is current schedule
+    {
+      var blockArray = res_object.results[0].day_type.blocks;
+      for(var x = 0; x < blockArray.length; x++)
+      {
+        //split times into array of hours at index 0 and minutes at index 1
+        var startArray = blockArray[x].start.split(':')
+        var endArray = blockArray[x].end.split(':')
+        if(Number(startArray[0]) > hours || ((Number(startArray[0]) == hours) && (Number(startArray[1]) > mins))) //before school or passing period
+        {
+          if(x == 0) //before school
+            app.ask(failedMessage);
+          else // passing period
+            app.ask("School is currently in between classes. Enjoy your break!")
+        }
+        else if(Number(endArray[0]) > hours || ((Number(endArray[0]) == hours) && (Number(endArray[1]) > mins))) //during this period
+          app.ask("It is currently " + blockArray[x].name + "!");
+        else if(x = blockArray.length - 1) //if after the period, must continue unless last
+          app.ask(failedMessage);
+      }
+    }
   });
 }
 
 
 const actionMap = new Map();
 actionMap.set(WELCOME_INTENT, welcomeIntent);
-actionMap.set(TEST_INTENT, testIntent);
 actionMap.set(GOING_INTENT, goingIntent);
 actionMap.set(SCHEDULE_INTENT, scheduleIntent);
 actionMap.set(PICTURE_INTENT, pictureIntent);
@@ -385,6 +416,7 @@ actionMap.set(FIND2_INTENT, find2Intent);
 actionMap.set(FIND3_INTENT, find3Intent);
 actionMap.set(FIND4_INTENT, find4Intent);
 actionMap.set(FIND5_INTENT, find5Intent);
+actionMap.set(CURRENT_INTENT, currentIntent);
 
 
 const ionFunctions = functions.https.onRequest((request, response) => {
