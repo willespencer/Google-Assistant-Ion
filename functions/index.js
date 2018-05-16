@@ -11,6 +11,15 @@ let DialogflowApp = require('actions-on-google').DialogflowApp;
 
 var headers;
 var body;
+
+
+/*var serviceAccount = require("path/to/serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://research-project-fadba.firebaseio.com"
+});*/
+
 admin.initializeApp(functions.config().firebase);
 
 const WELCOME_INTENT = 'input.welcome';  // the action name from the API.AI intent
@@ -378,7 +387,7 @@ actionMap.set(FIND4_INTENT, find4Intent);
 actionMap.set(FIND5_INTENT, find5Intent);
 
 
-const factsAboutGoogle = functions.https.onRequest((request, response) => {
+const ionFunctions = functions.https.onRequest((request, response) => {
   const app = new DialogflowApp({ request, response });
   console.log(`Request headers: ${JSON.stringify(request.headers)}`);
   headers = request.headers;
@@ -390,5 +399,5 @@ const factsAboutGoogle = functions.https.onRequest((request, response) => {
 });
 
 module.exports = {
-  factsAboutGoogle
+  ionFunctions
 };
