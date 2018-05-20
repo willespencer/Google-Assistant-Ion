@@ -8,44 +8,14 @@ const simpleoauth2 = require('simple-oauth2');
 const request = require('request');
 const fs = require('fs');
 
-const {
-  dialogflow,
-  BasicCard,
-  BrowseCarousel,
-  BrowseCarouselItem,
-  Button,
-  Carousel,
-  Image,
-  LinkOutSuggestion,
-  List,
-  MediaObject,
-  Suggestions,
-  SimpleResponse,
-  DialogflowApp,
-} = require('actions-on-google');
+let DialogflowApp = require('actions-on-google').DialogflowApp;
 
-//let DialogflowApp = require('actions-on-google').DialogflowApp;
+const LIST = 'list';
 
 // Constants for list and carousel selection
 const SELECTION_KEY_ONE = 'one';
 const SELECTION_KEY_TWO = 'two';
 const SELECTION_KEY_THREE = 'three';
-
-const SELECTED_ITEM_RESPONSES = {
-  [SELECTION_KEY_ONE]: 'You selected the first item',
-  [SELECTION_KEY_TWO]: 'You selected the second item',
-  [SELECTION_KEY_THREE]: 'You selected the third item',
-};
-
-const intentSuggestions = [
-  'Basic Card',
-  'Browse Carousel',
-  'Carousel',
-  'List',
-  'Media',
-  'Suggestions',
-  'Table',
-];
 
 var headers;
 var body;
@@ -63,6 +33,7 @@ const FIND4_INTENT = 'input.find4';
 const FIND5_INTENT = 'input.find5';
 const CURRENT_INTENT = 'input.current';
 const ANNOUNCEMENT_INTENT = 'input.announcement';
+//const ITEM_INTENT = 'input.item';
 
 var weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -71,11 +42,18 @@ var type;
 var weekDate;
 var block;
 
-//removes <br>'s from string
-function unBreak(str)
+//removes <>'s from string
+function unHTML(str)
 {
-  var splitStr = str.split("<br>");
-  return splitStr.join(' ');
+  var index = str.indexOf('<');
+  while(index != -1)
+  {
+    var endDex = str.indexOf('>');
+    str = str.substring(0, index) + str.substring(endDex + 1);
+    index = str.indexOf('<');
+  }
+
+  return str;
 }
 
 //makes a string from a list of possible options to display
@@ -375,7 +353,7 @@ function scheduleIntent(app)
     var res_object = JSON.parse(body);
     var day = res_object.results[0].day_type;
     //var output = "<speak>" + "Today is a " + unBreaked + "<break strength='medium'/>\n";
-    var unBreaked = unBreak(day.name);
+    var unBreaked = unHTML(day.name);
     var output = "<speak><p>Today is a " + unBreaked + "."
     if(day.blocks.length > 0)
     {
@@ -452,38 +430,58 @@ function announcementIntent(app){
     var res_object = JSON.parse(body);
     var results = res_object.results;
 
-    app.ask(new List({
-      title: 'Recent Ion Announcements',
-      items: {
-        // Add the first item to the list
-        [SELECTION_KEY_ONE]: {
-          title: results[0].title,
-          description: results[0].content,
-        },
-        // Add the second item to the list
-        [SELECTION_KEY_TWO]: {
-          title: results[1].title,
-          description: results[1].content,
-        },
-        // Add the third item to the list
-        [SELECTION_KEY_THREE]: {
-          title: results[2].title,
-          description: results[2].content,
-        },
-      },
-    }));
+    //for users on a Google Home or other non-screen device
+    const hasScreen = app.hasSurfaceCapability(app.SurfaceCapabilities.SCREEN_OUTPUT);
+    if (!hasScreen) {
+      app.tell('The most recent announcement is as follows... ' + results[0].title + ': ' + unHTML(results[0].content) + '.');
+      //return;
+    }
+
+    //otherwise...
+    app.askWithList(app.buildRichResponse()
+      .addSimpleResponse('Here are the most recent Ion Announcements.'),
+      //Build a list
+      app.buildList('Recent Ion Announcements')
+        .addItems(app.buildOptionItem(SELECTION_KEY_ONE, []) //first item
+          .setTitle(results[0].title)
+          .setDescription(unHTML(results[0].content))
+        )
+        .addItems(app.buildOptionItem(SELECTION_KEY_TWO, []) //second item
+          .setTitle(results[1].title)
+          .setDescription(unHTML(results[1].content))
+        )
+        .addItems(app.buildOptionItem(SELECTION_KEY_THREE, []) //third item
+          .setTitle(results[2].title)
+          .setDescription(unHTML(results[2].content))
+        )
+    );
   });
 }
 
-
-/*app.intent('actions.intent.OPTION', (app, params, option) => {
-  let response = 'You did not select any item';
-  if (option && SELECTED_ITEM_RESPONSES.hasOwnProperty(option)) {
-    response = SELECTED_ITEM_RESPONSES[option];
-  }
-  app.ask(response);
-});
-*/
+// // React to list selection
+// function itemIntent (app) {
+//   const access_token = app.getUser().accessToken;
+//   var my_ion_request = 'https://ion.tjhsst.edu/api/announcements?format=json&access_token='+access_token;
+//
+//   request.get( {url:my_ion_request}, function (e, r, body) {
+//     var res_object = JSON.parse(body);
+//     var results = res_object.results;
+//
+//     const param = app.getSelectedOption();
+//     console.log('USER SELECTED: ' + param);
+//     if (!param) {
+//       app.ask('You did not select any item from the list. Please select one now or ask another question.');
+//     } else if (param === SELECTION_KEY_ONE) {
+//       app.tell('The full description for ' + results[0].title + ' is: ' + results[0].content + '.');
+//     } else if (param === SELECTION_KEY_TWO) {
+//       app.tell('The full description for ' + results[1].title + ' is: ' + results[1].content + '.');
+//     } else if (param === SELECTION_KEY_THREE) {
+//       app.tell('The full description for ' + results[2].title + ' is: ' + results[2].content + '.');
+//     } else {
+//       app.ask('You selected an unknown item from the list. Please try again.');
+//     }
+//   });
+// }
 
 const actionMap = new Map();
 actionMap.set(WELCOME_INTENT, welcomeIntent);
@@ -497,6 +495,7 @@ actionMap.set(FIND4_INTENT, find4Intent);
 actionMap.set(FIND5_INTENT, find5Intent);
 actionMap.set(CURRENT_INTENT, currentIntent);
 actionMap.set(ANNOUNCEMENT_INTENT, announcementIntent);
+//actionMap.set(ITEM_INTENT, itemIntent);
 
 
 const ionFunctions = functions.https.onRequest((request, response) => {
