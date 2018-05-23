@@ -4,18 +4,12 @@
 // The Firebase Admin SDK to access the Firebase Realtime Database.
 const admin = require('firebase-admin');
 const functions = require('firebase-functions');
-const simpleoauth2 = require('simple-oauth2');
 const request = require('request');
 const fs = require('fs');
 
 let DialogflowApp = require('actions-on-google').DialogflowApp;
 
 const LIST = 'list';
-
-// Constants for list and carousel selection
-const SELECTION_KEY_ONE = 'one';
-const SELECTION_KEY_TWO = 'two';
-const SELECTION_KEY_THREE = 'three';
 
 var headers;
 var body;
@@ -41,6 +35,11 @@ var weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday"
 var type;
 var weekDate;
 var block;
+
+// Constants for list and carousel selection
+const SELECTION_KEY_ONE = 'one';
+const SELECTION_KEY_TWO = 'two';
+const SELECTION_KEY_THREE = 'three';
 
 //removes <>'s from string
 function unHTML(str)
